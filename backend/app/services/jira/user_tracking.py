@@ -1,10 +1,13 @@
 """Jira user activity tracking — who is doing what and when."""
 
+import asyncio
+import logging
 from datetime import datetime, timedelta
-from typing import Optional
 from ...core.atlassian_client import atlassian_client
 from ...core.config import settings
 from ...models.schemas import UserActivity
+
+logger = logging.getLogger(__name__)
 
 
 async def get_all_jira_users(active_only: bool = False) -> list[UserActivity]:
@@ -19,7 +22,7 @@ async def get_all_jira_users(active_only: bool = False) -> list[UserActivity]:
             continue
         users.append(
             UserActivity(
-                account_id=u["accountId"],
+                account_id=u.get("accountId", ""),
                 display_name=u.get("displayName", ""),
                 email=u.get("emailAddress"),
                 active=u.get("active", False),
@@ -33,20 +36,21 @@ async def get_user_activity(account_id: str, days: int = 30) -> UserActivity:
     """Compute activity metrics for a single user over the given window."""
     since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
 
-    created = await atlassian_client.jira_search(
-        jql=f'creator = "{account_id}" AND created >= "{since}"',
-        fields="key",
+    # Run all three searches concurrently
+    created_task = atlassian_client.jira_search(
+        jql=f'creator = "{account_id}" AND created >= "{since}"', fields="key",
     )
-    resolved = await atlassian_client.jira_search(
-        jql=f'assignee = "{account_id}" AND resolved >= "{since}"',
-        fields="key",
+    resolved_task = atlassian_client.jira_search(
+        jql=f'assignee = "{account_id}" AND resolved >= "{since}"', fields="key",
     )
-    updated = await atlassian_client.jira_search(
-        jql=f'updatedBy = "{account_id}" AND updated >= "{since}"',
-        fields="key",
+    updated_task = atlassian_client.jira_search(
+        jql=f'updatedBy = "{account_id}" AND updated >= "{since}"', fields="key",
     )
+    user_task = atlassian_client.jira_get(f"/user?accountId={account_id}")
 
-    user_info = await atlassian_client.jira_get(f"/user?accountId={account_id}")
+    created, resolved, updated, user_info = await asyncio.gather(
+        created_task, resolved_task, updated_task, user_task,
+    )
 
     return UserActivity(
         account_id=account_id,
@@ -65,17 +69,22 @@ async def get_inactive_users(days: int = 90) -> list[UserActivity]:
     all_users = await get_all_jira_users(active_only=True)
     since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
 
-    inactive = []
-    for user in all_users:
+    async def _check_inactive(user: UserActivity):
         results = await atlassian_client.jira_search(
             jql=f'updatedBy = "{user.account_id}" AND updated >= "{since}"',
             fields="key",
             max_results=1,
         )
-        if not results:
-            inactive.append(user)
+        return results
 
-    return inactive
+    # Batch check with concurrency limit
+    batch_results = await atlassian_client.batch(
+        all_users,
+        _check_inactive,
+        concurrency=10,
+    )
+
+    return [user for user, results in batch_results if results is not None and len(results) == 0]
 
 
 async def get_user_activity_summary(days: int = 30) -> dict:

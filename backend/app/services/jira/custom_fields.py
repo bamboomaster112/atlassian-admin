@@ -1,9 +1,10 @@
 """Track custom field usage, identify unused or duplicate fields."""
 
-from typing import Optional
+import logging
 from ...core.atlassian_client import atlassian_client
-from ...core.config import settings
 from ...models.schemas import CustomFieldUsage, CleanupRecommendation
+
+logger = logging.getLogger(__name__)
 
 
 async def get_all_custom_fields() -> list[CustomFieldUsage]:
@@ -25,35 +26,36 @@ async def get_all_custom_fields() -> list[CustomFieldUsage]:
 
 async def get_custom_field_usage(field_id: str) -> CustomFieldUsage:
     """Analyse how heavily a single custom field is used."""
-    field_info = None
     all_fields = await atlassian_client.jira_get("/field")
-    for f in all_fields:
-        if f["id"] == field_id:
-            field_info = f
-            break
+    field_info = next((f for f in all_fields if f["id"] == field_id), None)
 
     if not field_info:
         return CustomFieldUsage(field_id=field_id, field_name="Unknown", field_type="unknown")
 
+    field_name = field_info.get("name", "")
+
     # Count issues where this field has a value
-    issues = await atlassian_client.jira_search(
-        jql=f'"{field_info["name"]}" is not EMPTY',
-        fields="key",
-        max_results=1000,
-    )
+    try:
+        issues = await atlassian_client.jira_search(
+            jql=f'"{field_name}" is not EMPTY', fields="key", max_results=1000,
+        )
+    except Exception as e:
+        logger.warning(f"Could not search for field '{field_name}': {e}")
+        issues = []
 
     # Count projects where the field is populated
     project_keys: set[str] = set()
     if issues:
-        sample = await atlassian_client.jira_search(
-            jql=f'"{field_info["name"]}" is not EMPTY',
-            fields="project",
-            max_results=500,
-        )
-        for iss in sample:
-            pk = iss.get("fields", {}).get("project", {}).get("key")
-            if pk:
-                project_keys.add(pk)
+        try:
+            sample = await atlassian_client.jira_search(
+                jql=f'"{field_name}" is not EMPTY', fields="project", max_results=500,
+            )
+            for iss in sample:
+                pk = iss.get("fields", {}).get("project", {}).get("key")
+                if pk:
+                    project_keys.add(pk)
+        except Exception:
+            pass
 
     # Screens using this field
     screens_count = 0
@@ -71,7 +73,7 @@ async def get_custom_field_usage(field_id: str) -> CustomFieldUsage:
 
     return CustomFieldUsage(
         field_id=field_id,
-        field_name=field_info.get("name", ""),
+        field_name=field_name,
         field_type=field_info.get("schema", {}).get("type", "unknown"),
         projects_using=len(project_keys),
         issues_using=len(issues),
@@ -81,29 +83,28 @@ async def get_custom_field_usage(field_id: str) -> CustomFieldUsage:
 
 
 async def get_unused_custom_fields() -> list[CustomFieldUsage]:
-    """Return custom fields that appear to have zero usage."""
+    """Return custom fields that appear to have zero usage (batched)."""
     all_fields = await get_all_custom_fields()
-    unused = []
-    for cf in all_fields:
-        usage = await get_custom_field_usage(cf.field_id)
-        if usage.issues_using == 0:
-            unused.append(usage)
-    return unused
+
+    async def _check_usage(cf: CustomFieldUsage):
+        return await get_custom_field_usage(cf.field_id)
+
+    batch_results = await atlassian_client.batch(all_fields, _check_usage, concurrency=5)
+
+    return [usage for _, usage in batch_results if usage is not None and usage.issues_using == 0]
 
 
 async def get_custom_field_cleanup_recommendations() -> list[CleanupRecommendation]:
     """Generate actionable cleanup recommendations for custom fields."""
     unused = await get_unused_custom_fields()
-    recs = []
-    for cf in unused:
-        recs.append(
-            CleanupRecommendation(
-                category="custom_field",
-                item_name=cf.field_name,
-                item_id=cf.field_id,
-                reason="Custom field has zero issues with values",
-                impact="low",
-                product="jira",
-            )
+    return [
+        CleanupRecommendation(
+            category="custom_field",
+            item_name=cf.field_name,
+            item_id=cf.field_id,
+            reason="Custom field has zero issues with values",
+            impact="low",
+            product="jira",
         )
-    return recs
+        for cf in unused
+    ]

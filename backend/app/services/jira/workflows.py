@@ -1,8 +1,12 @@
 """Track workflow and scheme usage across Jira projects."""
 
+import asyncio
+import logging
 from ...core.atlassian_client import atlassian_client
 from ...core.config import settings
 from ...models.schemas import WorkflowUsage, SchemeUsage
+
+logger = logging.getLogger(__name__)
 
 
 async def get_all_workflows() -> list[WorkflowUsage]:
@@ -30,32 +34,28 @@ async def get_workflow_scheme_mappings() -> list[SchemeUsage]:
     schemes_raw = await atlassian_client.get_paginated(
         f"{settings.jira_rest_url}/workflowscheme"
     )
-    schemes = []
-    for s in schemes_raw:
-        schemes.append(
-            SchemeUsage(
-                scheme_name=s.get("name", ""),
-                scheme_type="workflow",
-                scheme_id=str(s.get("id", "")),
-                is_default=s.get("defaultScheme", False),
-            )
+    return [
+        SchemeUsage(
+            scheme_name=s.get("name", ""),
+            scheme_type="workflow",
+            scheme_id=str(s.get("id", "")),
+            is_default=s.get("defaultScheme", False),
         )
-    return schemes
+        for s in schemes_raw
+    ]
 
 
 async def get_permission_schemes() -> list[SchemeUsage]:
     """Fetch all permission schemes."""
     data = await atlassian_client.jira_get("/permissionscheme")
-    schemes = []
-    for s in data.get("permissionSchemes", []):
-        schemes.append(
-            SchemeUsage(
-                scheme_name=s.get("name", ""),
-                scheme_type="permission",
-                scheme_id=str(s.get("id", "")),
-            )
+    return [
+        SchemeUsage(
+            scheme_name=s.get("name", ""),
+            scheme_type="permission",
+            scheme_id=str(s.get("id", "")),
         )
-    return schemes
+        for s in data.get("permissionSchemes", [])
+    ]
 
 
 async def get_notification_schemes() -> list[SchemeUsage]:
@@ -63,16 +63,14 @@ async def get_notification_schemes() -> list[SchemeUsage]:
     data = await atlassian_client.get_paginated(
         f"{settings.jira_rest_url}/notificationscheme"
     )
-    schemes = []
-    for s in data:
-        schemes.append(
-            SchemeUsage(
-                scheme_name=s.get("name", ""),
-                scheme_type="notification",
-                scheme_id=str(s.get("id", "")),
-            )
+    return [
+        SchemeUsage(
+            scheme_name=s.get("name", ""),
+            scheme_type="notification",
+            scheme_id=str(s.get("id", "")),
         )
-    return schemes
+        for s in data
+    ]
 
 
 async def get_issue_type_schemes() -> list[SchemeUsage]:
@@ -80,26 +78,26 @@ async def get_issue_type_schemes() -> list[SchemeUsage]:
     data = await atlassian_client.get_paginated(
         f"{settings.jira_rest_url}/issuetypescheme"
     )
-    schemes = []
-    for s in data:
-        schemes.append(
-            SchemeUsage(
-                scheme_name=s.get("name", ""),
-                scheme_type="issue_type",
-                scheme_id=str(s.get("id", "")),
-                is_default=s.get("isDefault", False),
-            )
+    return [
+        SchemeUsage(
+            scheme_name=s.get("name", ""),
+            scheme_type="issue_type",
+            scheme_id=str(s.get("id", "")),
+            is_default=s.get("isDefault", False),
         )
-    return schemes
+        for s in data
+    ]
 
 
 async def get_all_schemes_summary() -> dict:
-    """Aggregate all scheme types into one summary."""
-    workflows = await get_all_workflows()
-    wf_schemes = await get_workflow_scheme_mappings()
-    perm_schemes = await get_permission_schemes()
-    notif_schemes = await get_notification_schemes()
-    it_schemes = await get_issue_type_schemes()
+    """Aggregate all scheme types concurrently."""
+    workflows, wf_schemes, perm_schemes, notif_schemes, it_schemes = await asyncio.gather(
+        get_all_workflows(),
+        get_workflow_scheme_mappings(),
+        get_permission_schemes(),
+        get_notification_schemes(),
+        get_issue_type_schemes(),
+    )
 
     return {
         "workflows": {"count": len(workflows), "items": [w.model_dump() for w in workflows]},

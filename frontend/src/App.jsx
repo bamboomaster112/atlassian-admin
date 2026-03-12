@@ -12,6 +12,7 @@ import LicensesPage from './pages/LicensesPage'
 import PermissionsPage from './pages/PermissionsPage'
 import CleanupPage from './pages/CleanupPage'
 import SyncHistoryPage from './pages/SyncHistoryPage'
+import InstanceOverviewPage from './pages/InstanceOverviewPage'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
       <main className="main-content">
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/instance" element={<InstanceOverviewPage />} />
           <Route path="/sync" element={<SyncHistoryPage />} />
           <Route path="/jira/users" element={<JiraUsersPage />} />
           <Route path="/jira/custom-fields" element={<CustomFieldsPage />} />

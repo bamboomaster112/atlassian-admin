@@ -1,13 +1,20 @@
 """Atlassian Admin Tracker — FastAPI application entry point."""
 
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from .core.config import settings
 from .core.database import init_db
+from .core.atlassian_client import AtlassianAPIError
+from .core.errors import atlassian_api_error_handler, generic_error_handler
 from .api.routes import dashboard, jira, confluence, jsm, governance, sync
+
+logging.basicConfig(
+    level=logging.DEBUG if settings.DEBUG else logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
 
 
 @asynccontextmanager
@@ -22,6 +29,10 @@ app = FastAPI(
     description="Administration governance & usage tracking for Jira, Confluence, and Jira Service Management",
     lifespan=lifespan,
 )
+
+# Error handlers
+app.add_exception_handler(AtlassianAPIError, atlassian_api_error_handler)
+app.add_exception_handler(Exception, generic_error_handler)
 
 app.add_middleware(
     CORSMiddleware,
