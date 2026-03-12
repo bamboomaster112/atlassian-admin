@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, Users, Columns3, Globe, ShieldCheck,
+  LayoutDashboard, Users, Columns3, Globe, ShieldCheck, RefreshCw,
   FolderKanban, FileText, Headphones, Trash2, KeyRound, CreditCard
 } from 'lucide-react'
 
@@ -9,6 +9,7 @@ const sections = [
     title: 'Overview',
     links: [
       { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/sync', label: 'Sync History', icon: RefreshCw },
     ],
   },
   {

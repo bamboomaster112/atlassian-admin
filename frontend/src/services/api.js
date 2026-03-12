@@ -45,3 +45,11 @@ export const getQueues = (id) => fetchJSON(`${BASE}/jsm/service-desks/${id}/queu
 export const getLicenseSummary = () => fetchJSON(`${BASE}/governance/licenses`)
 export const getPermissionsAudit = () => fetchJSON(`${BASE}/governance/permissions/audit`)
 export const getCleanupRecommendations = () => fetchJSON(`${BASE}/governance/cleanup`)
+
+// Sync
+export const triggerFullSync = () => fetch(`${BASE}/sync/run`, { method: 'POST' }).then(r => r.json())
+export const getSyncHistory = (limit) => fetchJSON(`${BASE}/sync/history`, { limit })
+
+// Dashboard (Supabase-cached)
+export const getDashboardCached = () => fetchJSON(`${BASE}/dashboard/cached`)
+export const getDashboardTrends = (limit) => fetchJSON(`${BASE}/dashboard/trends`, { limit })

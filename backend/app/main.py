@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .core.config import settings
 from .core.database import init_db
-from .api.routes import dashboard, jira, confluence, jsm, governance
+from .api.routes import dashboard, jira, confluence, jsm, governance, sync
 
 
 @asynccontextmanager
@@ -37,6 +37,7 @@ app.include_router(jira.router, prefix="/api")
 app.include_router(confluence.router, prefix="/api")
 app.include_router(jsm.router, prefix="/api")
 app.include_router(governance.router, prefix="/api")
+app.include_router(sync.router, prefix="/api")
 
 
 @app.get("/api/health")

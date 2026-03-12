@@ -1,5 +1,4 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -13,8 +12,10 @@ class Settings(BaseSettings):
     ATLASSIAN_EMAIL: str = ""
     ATLASSIAN_API_TOKEN: str = ""
 
-    # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./atlassian_admin.db"
+    # Supabase
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
 
     # Scheduler
     SYNC_INTERVAL_MINUTES: int = 60

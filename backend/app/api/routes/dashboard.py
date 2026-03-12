@@ -1,7 +1,8 @@
 """Dashboard overview endpoints."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
+from ...core.database import get_supabase
 from ...services.jira.projects import get_all_projects
 from ...services.jira.custom_fields import get_all_custom_fields, get_unused_custom_fields
 from ...services.jira.user_tracking import get_all_jira_users
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @router.get("/", response_model=AdminDashboard)
 async def get_dashboard():
-    """Top-level admin dashboard with key metrics."""
+    """Top-level admin dashboard with key metrics (live from Atlassian)."""
     projects = await get_all_projects()
     spaces = await get_all_spaces()
     desks = await get_all_service_desks()
@@ -37,3 +38,29 @@ async def get_dashboard():
         custom_fields_unused=len(unused_fields),
         cleanup_recommendations=recs["total_recommendations"],
     )
+
+
+@router.get("/cached")
+async def get_dashboard_cached():
+    """Return the most recent dashboard snapshot from Supabase (fast, no Atlassian calls)."""
+    sb = get_supabase()
+    result = sb.table("dashboard_snapshots") \
+        .select("*") \
+        .order("synced_at", desc=True) \
+        .limit(1) \
+        .execute()
+    if result.data:
+        return result.data[0]
+    return {"message": "No snapshots yet. Trigger a sync first via POST /api/sync/run"}
+
+
+@router.get("/trends")
+async def get_dashboard_trends(limit: int = Query(30, ge=1, le=365)):
+    """Return historical dashboard snapshots for trend charts."""
+    sb = get_supabase()
+    result = sb.table("dashboard_snapshots") \
+        .select("*") \
+        .order("synced_at", desc=True) \
+        .limit(limit) \
+        .execute()
+    return result.data
