@@ -7,12 +7,12 @@ _client: Client | None = None
 
 
 def get_supabase() -> Client:
-    """Return a singleton Supabase client using the service-role key."""
+    """Return a singleton Supabase client using the secret key (bypasses RLS)."""
     global _client
     if _client is None:
         _client = create_client(
             settings.SUPABASE_URL,
-            settings.SUPABASE_SERVICE_ROLE_KEY,
+            settings.SUPABASE_SECRET_KEY,
         )
     return _client
 

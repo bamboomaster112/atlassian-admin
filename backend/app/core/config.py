@@ -12,10 +12,10 @@ class Settings(BaseSettings):
     ATLASSIAN_EMAIL: str = ""
     ATLASSIAN_API_TOKEN: str = ""
 
-    # Supabase
+    # Supabase (new key format: sb_publishable_xxx / sb_secret_xxx)
     SUPABASE_URL: str = ""
-    SUPABASE_ANON_KEY: str = ""
-    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_PUBLISHABLE_KEY: str = ""  # public, safe for frontend (replaces legacy anon key)
+    SUPABASE_SECRET_KEY: str = ""       # backend only, bypasses RLS (replaces legacy service_role key)
 
     # Scheduler
     SYNC_INTERVAL_MINUTES: int = 60

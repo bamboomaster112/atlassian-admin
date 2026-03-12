@@ -1,16 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseKey)
 
 /**
- * Query a Supabase table directly from the frontend (read-only via anon key + RLS).
+ * Query a Supabase table directly from the frontend (read-only via publishable key + RLS).
  * Falls back gracefully if Supabase is not configured.
  */
 export async function queryTable(table, { select = '*', order, limit, eq } = {}) {
-  if (!supabaseUrl || !supabaseAnonKey) return []
+  if (!supabaseUrl || !supabaseKey) return []
 
   let query = supabase.from(table).select(select)
 
