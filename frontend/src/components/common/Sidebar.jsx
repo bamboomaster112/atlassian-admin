@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Columns3, Globe, ShieldCheck, RefreshCw, Network,
-  FolderKanban, FileText, Headphones, Trash2, KeyRound, CreditCard
+  FolderKanban, FileText, Headphones, Trash2, KeyRound, CreditCard,
+  UsersRound, Filter, ScrollText,
 } from 'lucide-react'
 
 const sections = [
@@ -20,6 +21,9 @@ const sections = [
       { to: '/jira/custom-fields', label: 'Custom Fields', icon: Columns3 },
       { to: '/jira/schemes', label: 'Workflows & Schemes', icon: FolderKanban },
       { to: '/jira/projects', label: 'Projects', icon: FolderKanban },
+      { to: '/jira/groups', label: 'Groups', icon: UsersRound },
+      { to: '/jira/filters-dashboards', label: 'Filters & Dashboards', icon: Filter },
+      { to: '/jira/audit-log', label: 'Audit Log', icon: ScrollText },
     ],
   },
   {

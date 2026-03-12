@@ -121,7 +121,12 @@ export default function DashboardPage() {
         <MetricCard label="Active Users" value={data.active_users} color="green" />
         <MetricCard label="Inactive Users" value={data.inactive_users} color="yellow" />
         <MetricCard label="Custom Fields" value={data.custom_fields_total} color="blue" />
-        <MetricCard label="Unused Custom Fields" value={data.custom_fields_unused} color="red" />
+        <MetricCard label="Unused Fields" value={data.custom_fields_unused} color="red" />
+        <MetricCard label="Workflows" value={data.total_workflows} color="blue" />
+        <MetricCard label="Schemes" value={data.total_schemes} color="green" />
+        <MetricCard label="Groups" value={data.total_groups} color="purple" />
+        <MetricCard label="Filters" value={data.total_filters} color="blue" />
+        <MetricCard label="Dashboards" value={data.total_dashboards_jira} color="green" />
         <MetricCard label="Cleanup Items" value={data.cleanup_recommendations} color="yellow" />
       </div>
 

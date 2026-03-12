@@ -1,11 +1,15 @@
 """Dashboard overview endpoints."""
 
+import asyncio
 from fastapi import APIRouter, Query
 
 from ...core.database import get_supabase
 from ...services.jira.projects import get_all_projects
 from ...services.jira.custom_fields import get_all_custom_fields, get_unused_custom_fields
 from ...services.jira.user_tracking import get_all_jira_users
+from ...services.jira.workflows import get_all_workflows, get_all_schemes_summary
+from ...services.jira.groups import get_all_groups
+from ...services.jira.filters_dashboards import get_all_filters, get_all_dashboards
 from ...services.confluence.spaces import get_all_spaces
 from ...services.jsm.service_desks import get_all_service_desks
 from ...services.governance.cleanup import get_all_recommendations
@@ -17,13 +21,28 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 @router.get("/", response_model=AdminDashboard)
 async def get_dashboard():
     """Top-level admin dashboard with key metrics (live from Atlassian)."""
-    projects = await get_all_projects()
-    spaces = await get_all_spaces()
-    desks = await get_all_service_desks()
-    users = await get_all_jira_users()
-    custom_fields = await get_all_custom_fields()
-    unused_fields = await get_unused_custom_fields()
-    recs = await get_all_recommendations()
+    (
+        projects, spaces, desks, users, custom_fields, unused_fields,
+        recs, workflows, groups, filters, dashboards
+    ) = await asyncio.gather(
+        get_all_projects(),
+        get_all_spaces(),
+        get_all_service_desks(),
+        get_all_jira_users(),
+        get_all_custom_fields(),
+        get_unused_custom_fields(),
+        get_all_recommendations(),
+        get_all_workflows(),
+        get_all_groups(),
+        get_all_filters(),
+        get_all_dashboards(),
+    )
+
+    schemes_summary = await get_all_schemes_summary()
+    total_schemes = sum(
+        v["count"] for v in schemes_summary.values()
+        if isinstance(v, dict) and "count" in v
+    )
 
     active_users = sum(1 for u in users if u.active)
 
@@ -36,6 +55,11 @@ async def get_dashboard():
         inactive_users=len(users) - active_users,
         custom_fields_total=len(custom_fields),
         custom_fields_unused=len(unused_fields),
+        total_workflows=len(workflows),
+        total_schemes=total_schemes,
+        total_groups=len(groups),
+        total_filters=len(filters),
+        total_dashboards_jira=len(dashboards),
         cleanup_recommendations=recs["total_recommendations"],
     )
 

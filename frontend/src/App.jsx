@@ -13,6 +13,9 @@ import PermissionsPage from './pages/PermissionsPage'
 import CleanupPage from './pages/CleanupPage'
 import SyncHistoryPage from './pages/SyncHistoryPage'
 import InstanceOverviewPage from './pages/InstanceOverviewPage'
+import GroupsPage from './pages/GroupsPage'
+import FiltersDashboardsPage from './pages/FiltersDashboardsPage'
+import AuditLogPage from './pages/AuditLogPage'
 
 export default function App() {
   return (
@@ -27,6 +30,9 @@ export default function App() {
           <Route path="/jira/custom-fields" element={<CustomFieldsPage />} />
           <Route path="/jira/schemes" element={<SchemesPage />} />
           <Route path="/jira/projects" element={<JiraProjectsPage />} />
+          <Route path="/jira/groups" element={<GroupsPage />} />
+          <Route path="/jira/filters-dashboards" element={<FiltersDashboardsPage />} />
+          <Route path="/jira/audit-log" element={<AuditLogPage />} />
           <Route path="/confluence/spaces" element={<ConfluenceSpacesPage />} />
           <Route path="/confluence/content" element={<ConfluenceContentPage />} />
           <Route path="/jsm/overview" element={<JSMOverviewPage />} />
