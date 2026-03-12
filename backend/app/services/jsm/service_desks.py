@@ -32,7 +32,6 @@ async def get_service_desk_detail(service_desk_id: str) -> ServiceDeskSummary:
     """Detailed metrics for a single service desk (concurrent sub-requests)."""
     desk = await atlassian_client.jsm_get(f"/servicedesk/{service_desk_id}")
 
-    # Fetch sub-resources concurrently
     rt_task = atlassian_client.get_paginated(
         f"{settings.jsm_rest_url}/servicedesk/{service_desk_id}/requesttype"
     )
@@ -59,7 +58,7 @@ async def get_service_desk_detail(service_desk_id: str) -> ServiceDeskSummary:
 
 
 async def get_request_types(service_desk_id: str) -> list[RequestTypeUsage]:
-    """Fetch all request types for a service desk (batched field lookups)."""
+    """Fetch all request types with field details (batched)."""
     rt_data = await atlassian_client.get_paginated(
         f"{settings.jsm_rest_url}/servicedesk/{service_desk_id}/requesttype"
     )
@@ -70,7 +69,12 @@ async def get_request_types(service_desk_id: str) -> list[RequestTypeUsage]:
                 f"/servicedesk/{service_desk_id}/requesttype/{rt['id']}/field"
             )
             return [
-                f.get("name", f.get("fieldId", ""))
+                {
+                    "fieldId": f.get("fieldId", ""),
+                    "name": f.get("name", f.get("fieldId", "")),
+                    "required": f.get("required", False),
+                    "description": f.get("description", ""),
+                }
                 for f in fields_data.get("requestTypeFields", [])
             ]
         except Exception:
@@ -83,9 +87,14 @@ async def get_request_types(service_desk_id: str) -> list[RequestTypeUsage]:
             request_type_id=str(rt.get("id", "")),
             request_type_name=rt.get("name", ""),
             service_desk_id=service_desk_id,
-            fields=field_names or [],
+            description=rt.get("description"),
+            help_text=rt.get("helpText"),
+            icon_url=rt.get("icon", {}).get("url48x48") if rt.get("icon") else None,
+            portal_id=str(rt.get("portalId", "")) if rt.get("portalId") else None,
+            group_ids=[str(g) for g in rt.get("groupIds", [])],
+            fields=field_data or [],
         )
-        for rt, field_names in batch_results
+        for rt, field_data in batch_results
     ]
 
 

@@ -13,6 +13,7 @@ from ...services.confluence.content import (
     get_top_contributors,
     get_label_usage,
 )
+from ...services.confluence.templates import get_all_templates
 
 router = APIRouter(prefix="/confluence", tags=["Confluence"])
 
@@ -54,3 +55,10 @@ async def top_contributors(days: int = Query(30, ge=1, le=365), limit: int = Que
 @router.get("/content/labels")
 async def label_usage():
     return await get_label_usage()
+
+
+# ── Templates ────────────────────────────────────────
+
+@router.get("/templates")
+async def list_templates():
+    return await get_all_templates()

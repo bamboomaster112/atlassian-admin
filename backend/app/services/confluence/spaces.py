@@ -10,16 +10,23 @@ logger = logging.getLogger(__name__)
 
 
 async def get_all_spaces() -> list[SpaceAnalytics]:
-    """Fetch all Confluence spaces with metadata."""
+    """Fetch all Confluence spaces with full metadata."""
     spaces_raw = await atlassian_client.get_paginated(
         f"{settings.confluence_rest_url}/space",
-        params={"expand": "description.plain,metadata.labels"},
+        params={"expand": "description.plain,metadata.labels,homepage"},
     )
     return [
         SpaceAnalytics(
             space_key=s.get("key", ""),
             space_name=s.get("name", ""),
             space_type=s.get("type", "global"),
+            description=(s.get("description", {}).get("plain", {}).get("value", "") or "")[:500] if s.get("description") else None,
+            homepage_id=str(s.get("homepage", {}).get("id", "")) if s.get("homepage") else None,
+            status=s.get("status", "current"),
+            labels=[
+                lb.get("name", "")
+                for lb in s.get("metadata", {}).get("labels", {}).get("results", [])
+            ],
         )
         for s in spaces_raw
     ]
@@ -29,7 +36,7 @@ async def get_space_detail(space_key: str) -> SpaceAnalytics:
     """Detailed analytics for a single space."""
     space = await atlassian_client.confluence_get(
         f"/space/{space_key}",
-        params={"expand": "description.plain,permissions"},
+        params={"expand": "description.plain,permissions,homepage"},
     )
 
     # Fetch page and blog counts concurrently
@@ -62,10 +69,17 @@ async def get_space_detail(space_key: str) -> SpaceAnalytics:
                     perm_summary[key] = []
                 perm_summary[key].append(p.get("operation", {}).get("operation", ""))
 
+    description = None
+    if space.get("description"):
+        description = (space["description"].get("plain", {}).get("value", "") or "")[:500]
+
     return SpaceAnalytics(
         space_key=space.get("key", space_key),
         space_name=space.get("name", ""),
         space_type=space.get("type", "global"),
+        description=description,
+        homepage_id=str(space.get("homepage", {}).get("id", "")) if space.get("homepage") else None,
+        status=space.get("status", "current"),
         total_pages=total_pages,
         total_blog_posts=total_blogs,
         permissions_summary=perm_summary,

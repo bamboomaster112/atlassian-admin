@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 async def get_all_jira_users(active_only: bool = False) -> list[UserActivity]:
-    """Fetch all Jira users from the instance."""
+    """Fetch all Jira users with full profile data."""
     users_raw = await atlassian_client.get_paginated(
         f"{settings.jira_rest_url}/users/search",
         max_results=5000,
@@ -26,6 +26,10 @@ async def get_all_jira_users(active_only: bool = False) -> list[UserActivity]:
                 display_name=u.get("displayName", ""),
                 email=u.get("emailAddress"),
                 active=u.get("active", False),
+                account_type=u.get("accountType", "atlassian"),
+                avatar_url=(u.get("avatarUrls", {}) or {}).get("48x48"),
+                timezone=u.get("timeZone"),
+                locale=u.get("locale"),
                 product="jira",
             )
         )
@@ -36,7 +40,6 @@ async def get_user_activity(account_id: str, days: int = 30) -> UserActivity:
     """Compute activity metrics for a single user over the given window."""
     since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
 
-    # Run all three searches concurrently
     created_task = atlassian_client.jira_search(
         jql=f'creator = "{account_id}" AND created >= "{since}"', fields="key",
     )
@@ -57,6 +60,10 @@ async def get_user_activity(account_id: str, days: int = 30) -> UserActivity:
         display_name=user_info.get("displayName", ""),
         email=user_info.get("emailAddress"),
         active=user_info.get("active", False),
+        account_type=user_info.get("accountType", "atlassian"),
+        avatar_url=(user_info.get("avatarUrls", {}) or {}).get("48x48"),
+        timezone=user_info.get("timeZone"),
+        locale=user_info.get("locale"),
         issues_created=len(created),
         issues_resolved=len(resolved),
         issues_updated=len(updated),
@@ -77,13 +84,7 @@ async def get_inactive_users(days: int = 90) -> list[UserActivity]:
         )
         return results
 
-    # Batch check with concurrency limit
-    batch_results = await atlassian_client.batch(
-        all_users,
-        _check_inactive,
-        concurrency=10,
-    )
-
+    batch_results = await atlassian_client.batch(all_users, _check_inactive, concurrency=10)
     return [user for user, results in batch_results if results is not None and len(results) == 0]
 
 

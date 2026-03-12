@@ -8,17 +8,25 @@ logger = logging.getLogger(__name__)
 
 
 async def get_all_custom_fields() -> list[CustomFieldUsage]:
-    """Fetch every custom field definition from the instance."""
+    """Fetch every custom field definition with full metadata."""
     fields_raw = await atlassian_client.jira_get("/field")
     custom_fields = []
     for f in fields_raw:
         if not f.get("custom", False):
             continue
+        schema = f.get("schema", {})
         custom_fields.append(
             CustomFieldUsage(
                 field_id=f["id"],
                 field_name=f.get("name", ""),
-                field_type=f.get("schema", {}).get("type", "unknown"),
+                field_type=schema.get("type", "unknown"),
+                description=f.get("description"),
+                searcher_key=f.get("searcherKey"),
+                schema_type=schema.get("type"),
+                schema_custom=schema.get("custom"),
+                schema_custom_id=schema.get("customId"),
+                is_locked=f.get("isLocked", False),
+                is_managed=f.get("isManaged", False),
             )
         )
     return custom_fields
@@ -33,6 +41,7 @@ async def get_custom_field_usage(field_id: str) -> CustomFieldUsage:
         return CustomFieldUsage(field_id=field_id, field_name="Unknown", field_type="unknown")
 
     field_name = field_info.get("name", "")
+    schema = field_info.get("schema", {})
 
     # Count issues where this field has a value
     try:
@@ -65,6 +74,16 @@ async def get_custom_field_usage(field_id: str) -> CustomFieldUsage:
     except Exception:
         pass
 
+    # Context (project scope)
+    context_project_ids = []
+    try:
+        contexts = await atlassian_client.jira_get(f"/field/{field_id}/context")
+        for ctx in contexts.get("values", []):
+            for proj_id in ctx.get("projectIds", []):
+                context_project_ids.append(str(proj_id))
+    except Exception:
+        pass
+
     recommendation = None
     if len(issues) == 0:
         recommendation = "Unused — consider removing"
@@ -74,10 +93,18 @@ async def get_custom_field_usage(field_id: str) -> CustomFieldUsage:
     return CustomFieldUsage(
         field_id=field_id,
         field_name=field_name,
-        field_type=field_info.get("schema", {}).get("type", "unknown"),
+        field_type=schema.get("type", "unknown"),
+        description=field_info.get("description"),
+        searcher_key=field_info.get("searcherKey"),
+        schema_type=schema.get("type"),
+        schema_custom=schema.get("custom"),
+        schema_custom_id=schema.get("customId"),
+        is_locked=field_info.get("isLocked", False),
+        is_managed=field_info.get("isManaged", False),
         projects_using=len(project_keys),
         issues_using=len(issues),
         screens_using=screens_count,
+        context_project_ids=context_project_ids,
         recommendation=recommendation,
     )
 

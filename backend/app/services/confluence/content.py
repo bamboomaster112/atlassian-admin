@@ -9,11 +9,15 @@ logger = logging.getLogger(__name__)
 
 
 async def get_recently_updated_content(days: int = 30, limit: int = 50) -> list[ContentAnalytics]:
-    """Fetch recently updated pages/blogs across the instance."""
+    """Fetch recently updated pages/blogs with full metadata."""
     cql = f'lastModified >= now("-{days}d") ORDER BY lastModified DESC'
     results = await atlassian_client.confluence_get(
         "/content/search",
-        params={"cql": cql, "limit": limit, "expand": "version,space,metadata.labels"},
+        params={
+            "cql": cql,
+            "limit": limit,
+            "expand": "version,space,metadata.labels,ancestors,children.comment,body.storage",
+        },
     )
     items = []
     for r in results.get("results", []):
@@ -21,14 +25,29 @@ async def get_recently_updated_content(days: int = 30, limit: int = 50) -> list[
             lb["name"]
             for lb in r.get("metadata", {}).get("labels", {}).get("results", [])
         ]
+        version = r.get("version", {})
+        ancestors = [
+            {"id": a.get("id", ""), "title": a.get("title", "")}
+            for a in r.get("ancestors", [])
+        ]
+        body_length = len(r.get("body", {}).get("storage", {}).get("value", ""))
+        comments_count = r.get("children", {}).get("comment", {}).get("size", 0)
+
         items.append(
             ContentAnalytics(
                 content_id=r["id"],
                 title=r.get("title", ""),
                 space_key=r.get("space", {}).get("key", ""),
                 content_type=r.get("type", "page"),
-                version=r.get("version", {}).get("number", 1),
+                created_by=version.get("by", {}).get("displayName") if version.get("number", 1) == 1 else None,
+                created_date=r.get("history", {}).get("createdDate") if r.get("history") else None,
+                last_updated=version.get("when"),
+                last_updated_by=version.get("by", {}).get("displayName"),
+                version=version.get("number", 1),
+                body_length=body_length,
                 labels=labels,
+                ancestors=ancestors,
+                comments_count=comments_count,
             )
         )
     return items
@@ -39,7 +58,7 @@ async def get_stale_content(days: int = 365, limit: int = 100) -> list[ContentAn
     cql = f'lastModified <= now("-{days}d") AND type = page ORDER BY lastModified ASC'
     results = await atlassian_client.confluence_get(
         "/content/search",
-        params={"cql": cql, "limit": limit, "expand": "version,space"},
+        params={"cql": cql, "limit": limit, "expand": "version,space,metadata.labels"},
     )
     return [
         ContentAnalytics(
@@ -47,7 +66,13 @@ async def get_stale_content(days: int = 365, limit: int = 100) -> list[ContentAn
             title=r.get("title", ""),
             space_key=r.get("space", {}).get("key", ""),
             content_type="page",
+            last_updated=r.get("version", {}).get("when"),
+            last_updated_by=r.get("version", {}).get("by", {}).get("displayName"),
             version=r.get("version", {}).get("number", 1),
+            labels=[
+                lb["name"]
+                for lb in r.get("metadata", {}).get("labels", {}).get("results", [])
+            ],
         )
         for r in results.get("results", [])
     ]
@@ -92,7 +117,6 @@ async def get_label_usage() -> list[dict]:
         spaces_raw[:50], _fetch_labels, concurrency=5
     )
 
-    # Merge all space-level counts
     label_counts: dict[str, int] = {}
     for _, counts in batch_results:
         if counts:

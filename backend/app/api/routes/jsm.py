@@ -9,6 +9,7 @@ from ...services.jsm.service_desks import (
     get_queues,
     get_jsm_overview,
 )
+from ...services.jsm.organizations import get_all_organizations
 
 router = APIRouter(prefix="/jsm", tags=["Jira Service Management"])
 
@@ -36,3 +37,8 @@ async def request_types(service_desk_id: str):
 @router.get("/service-desks/{service_desk_id}/queues")
 async def queues(service_desk_id: str):
     return await get_queues(service_desk_id)
+
+
+@router.get("/organizations")
+async def list_organizations():
+    return await get_all_organizations()

@@ -10,20 +10,36 @@ logger = logging.getLogger(__name__)
 
 
 async def get_all_workflows() -> list[WorkflowUsage]:
-    """Fetch all workflows and their usage metrics."""
+    """Fetch all workflows with full metadata."""
     workflows_raw = await atlassian_client.get_paginated(
         f"{settings.jira_rest_url}/workflow/search"
     )
     workflows = []
     for wf in workflows_raw:
         statuses = [s.get("name", "") for s in wf.get("statuses", [])]
-        transitions = len(wf.get("transitions", []))
+        transitions = wf.get("transitions", [])
+        transition_details = [
+            {
+                "id": str(t.get("id", "")),
+                "name": t.get("name", ""),
+                "from": t.get("from", {}).get("name") if t.get("from") else "any",
+                "to": t.get("to", {}).get("name", "") if t.get("to") else "",
+                "type": t.get("type", ""),
+            }
+            for t in transitions
+        ]
+        wf_id = wf.get("id", {})
         workflows.append(
             WorkflowUsage(
-                workflow_name=wf.get("id", {}).get("name", wf.get("name", "")),
+                workflow_name=wf_id.get("name", wf.get("name", "")) if isinstance(wf_id, dict) else wf.get("name", ""),
+                workflow_id=str(wf_id.get("entityId", "")) if isinstance(wf_id, dict) else str(wf_id),
+                description=wf.get("description"),
+                scope=wf.get("scope", {}).get("type", "global") if wf.get("scope") else "global",
                 projects_using=0,
                 statuses=statuses,
-                transitions=transitions,
+                transitions=len(transitions),
+                transition_details=transition_details,
+                is_default=wf.get("isDefault", False),
             )
         )
     return workflows
@@ -39,6 +55,7 @@ async def get_workflow_scheme_mappings() -> list[SchemeUsage]:
             scheme_name=s.get("name", ""),
             scheme_type="workflow",
             scheme_id=str(s.get("id", "")),
+            description=s.get("description"),
             is_default=s.get("defaultScheme", False),
         )
         for s in schemes_raw
@@ -53,6 +70,7 @@ async def get_permission_schemes() -> list[SchemeUsage]:
             scheme_name=s.get("name", ""),
             scheme_type="permission",
             scheme_id=str(s.get("id", "")),
+            description=s.get("description"),
         )
         for s in data.get("permissionSchemes", [])
     ]
@@ -68,6 +86,7 @@ async def get_notification_schemes() -> list[SchemeUsage]:
             scheme_name=s.get("name", ""),
             scheme_type="notification",
             scheme_id=str(s.get("id", "")),
+            description=s.get("description"),
         )
         for s in data
     ]
@@ -83,6 +102,7 @@ async def get_issue_type_schemes() -> list[SchemeUsage]:
             scheme_name=s.get("name", ""),
             scheme_type="issue_type",
             scheme_id=str(s.get("id", "")),
+            description=s.get("description"),
             is_default=s.get("isDefault", False),
         )
         for s in data
